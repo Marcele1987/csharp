@@ -1,5 +1,6 @@
 namespace k8s.KubeConfigModels
 {
+    using Microsoft.Extensions.Configuration;
     using System.Collections.Generic;
     using YamlDotNet.Serialization;
 
@@ -10,8 +11,13 @@ namespace k8s.KubeConfigModels
     /// <remarks>
     /// Should be kept in sync with https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/client-go/tools/clientcmd/api/v1/types.go
     /// </remarks>
-    public class K8SConfiguration
+    public class K8SConfiguration : IK8SConfiguration
     {
+        public K8SConfiguration(IConfiguration config)
+        {
+            config.GetSection("K8SConfiguration").Bind(this);
+        }
+
         /// <summary>
         /// Gets or sets general information to be use for CLI interactions
         /// </summary>

@@ -93,10 +93,10 @@ namespace k8s
         /// <param name="k8sConfig">A <see cref="K8SConfiguration"/>, for example loaded from <see cref="LoadKubeConfigAsync(string, bool)" /></param>
         /// <param name="currentContext">Override the current context in config, set null if do not want to override</param>
         /// <param name="masterUrl">Override the Kubernetes API server endpoint, set null if do not want to override</param>
-        public static KubernetesClientConfiguration BuildConfigFromConfigObject(K8SConfiguration k8SConfig, string currentContext = null, string masterUrl = null)
+        public static KubernetesClientConfiguration BuildConfigFromConfigObject(IK8SConfiguration k8SConfig, string currentContext = null, string masterUrl = null)
             => GetKubernetesClientConfiguration(currentContext, masterUrl, k8SConfig);
 
-        private static KubernetesClientConfiguration GetKubernetesClientConfiguration(string currentContext, string masterUrl, K8SConfiguration k8SConfig)
+        private static KubernetesClientConfiguration GetKubernetesClientConfiguration(string currentContext, string masterUrl, IK8SConfiguration k8SConfig)
         {
             var k8SConfiguration = new KubernetesClientConfiguration();
 
@@ -124,7 +124,7 @@ namespace k8s
         /// </summary>
         /// <param name="k8SConfig">Kubernetes Configuration</param>
         /// <param name="currentContext">Current Context</param>
-        private void InitializeContext(K8SConfiguration k8SConfig, string currentContext)
+        private void InitializeContext(IK8SConfiguration k8SConfig, string currentContext)
         {
             // current context
             var activeContext =
@@ -147,7 +147,7 @@ namespace k8s
             Namespace = activeContext.Namespace;
         }
 
-        private void SetClusterDetails(K8SConfiguration k8SConfig, Context activeContext)
+        private void SetClusterDetails(IK8SConfiguration k8SConfig, Context activeContext)
         {
             var clusterDetails =
                 k8SConfig.Clusters.FirstOrDefault(c => c.Name.Equals(activeContext.ContextDetails.Cluster,
@@ -197,7 +197,7 @@ namespace k8s
             }
         }
 
-        private void SetUserDetails(K8SConfiguration k8SConfig, Context activeContext)
+        private void SetUserDetails(IK8SConfiguration k8SConfig, Context activeContext)
         {
             if (string.IsNullOrWhiteSpace(activeContext.ContextDetails.User))
             {
@@ -397,7 +397,7 @@ namespace k8s
         /// this will return "C:\Users\me\ca.crt". Similarly, if path is "D:\ca.cart", this will return
         /// "D:\ca.crt".
         /// </remarks>
-        private static string GetFullPath(K8SConfiguration configuration, string path)
+        private static string GetFullPath(IK8SConfiguration configuration, string path)
         {
             // If we don't have a file name,
             if (string.IsNullOrWhiteSpace(configuration.FileName) || Path.IsPathRooted(path))

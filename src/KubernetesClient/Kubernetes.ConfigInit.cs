@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using k8s.Exceptions;
+using k8s.KubeConfigModels;
 using k8s.Models;
 using Microsoft.Rest;
 
@@ -79,13 +80,88 @@ namespace k8s
         ///     Initializes a new instance of the <see cref="Kubernetes" /> class.
         /// </summary>
         /// <param name='config'>
-        ///     Optional. The delegating handlers to add to the http client pipeline.
+        ///    The configuration file for connecting to Kubernetes
         /// </param>
         /// <param name="handlers">
         ///     Optional. The delegating handlers to add to the http client pipeline.
         /// </param>
         public Kubernetes(KubernetesClientConfiguration config, params DelegatingHandler[] handlers) : this(handlers)
         {
+            if (string.IsNullOrWhiteSpace(config.Host))
+            {
+                throw new KubeConfigException("Host url must be set");
+            }
+
+            try
+            {
+                BaseUri = new Uri(config.Host);
+            }
+            catch (UriFormatException e)
+            {
+                throw new KubeConfigException("Bad host url", e);
+            }
+
+            CaCert = config.SslCaCert;
+            SkipTlsVerify = config.SkipTlsVerify;
+
+            if (BaseUri.Scheme == "https")
+            {
+                if (config.SkipTlsVerify)
+                {
+#if NET452
+                    ((WebRequestHandler) HttpClientHandler).ServerCertificateValidationCallback =
+                        (sender, certificate, chain, sslPolicyErrors) => true;
+#elif XAMARINIOS1_0
+                    System.Net.ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) =>
+                    {
+                        return true;
+                    };
+#else
+                    HttpClientHandler.ServerCertificateCustomValidationCallback =
+                        (sender, certificate, chain, sslPolicyErrors) => true;
+#endif
+                }
+                else
+                {
+                    if (CaCert == null)
+                    {
+                        throw new KubeConfigException("a CA must be set when SkipTlsVerify === false");
+                    }
+
+#if NET452
+                    ((WebRequestHandler) HttpClientHandler).ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
+                    {
+                        return Kubernetes.CertificateValidationCallBack(sender, CaCert, certificate, chain, sslPolicyErrors);
+                    };
+#elif XAMARINIOS1_0
+                    System.Net.ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) =>
+                    {
+                        var cert = new X509Certificate2(certificate);
+                        return Kubernetes.CertificateValidationCallBack(sender, CaCert, cert, chain, sslPolicyErrors);
+                    };
+#else
+                    HttpClientHandler.ServerCertificateCustomValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
+                    {
+                        return Kubernetes.CertificateValidationCallBack(sender, CaCert, certificate, chain, sslPolicyErrors);
+                    };
+#endif
+                }
+            }
+
+            // set credentails for the kubernernet client
+            SetCredentials(config, HttpClientHandler);
+        }
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="Kubernetes" /> class.
+        /// </summary>
+        /// <param name='k8SConfiguration'>
+        ///     The configuration file for connection to Kubernetes
+        /// </param>
+        public Kubernetes(IK8SConfiguration k8SConfiguration)
+        {
+            var config = KubernetesClientConfiguration.BuildConfigFromConfigObject(k8SConfiguration);
+
             if (string.IsNullOrWhiteSpace(config.Host))
             {
                 throw new KubeConfigException("Host url must be set");
