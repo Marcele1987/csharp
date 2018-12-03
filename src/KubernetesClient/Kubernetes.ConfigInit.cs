@@ -87,69 +87,7 @@ namespace k8s
         /// </param>
         public Kubernetes(KubernetesClientConfiguration config, params DelegatingHandler[] handlers) : this(handlers)
         {
-            if (string.IsNullOrWhiteSpace(config.Host))
-            {
-                throw new KubeConfigException("Host url must be set");
-            }
-
-            try
-            {
-                BaseUri = new Uri(config.Host);
-            }
-            catch (UriFormatException e)
-            {
-                throw new KubeConfigException("Bad host url", e);
-            }
-
-            CaCert = config.SslCaCert;
-            SkipTlsVerify = config.SkipTlsVerify;
-
-            if (BaseUri.Scheme == "https")
-            {
-                if (config.SkipTlsVerify)
-                {
-#if NET452
-                    ((WebRequestHandler) HttpClientHandler).ServerCertificateValidationCallback =
-                        (sender, certificate, chain, sslPolicyErrors) => true;
-#elif XAMARINIOS1_0
-                    System.Net.ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) =>
-                    {
-                        return true;
-                    };
-#else
-                    HttpClientHandler.ServerCertificateCustomValidationCallback =
-                        (sender, certificate, chain, sslPolicyErrors) => true;
-#endif
-                }
-                else
-                {
-                    if (CaCert == null)
-                    {
-                        throw new KubeConfigException("a CA must be set when SkipTlsVerify === false");
-                    }
-
-#if NET452
-                    ((WebRequestHandler) HttpClientHandler).ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
-                    {
-                        return Kubernetes.CertificateValidationCallBack(sender, CaCert, certificate, chain, sslPolicyErrors);
-                    };
-#elif XAMARINIOS1_0
-                    System.Net.ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) =>
-                    {
-                        var cert = new X509Certificate2(certificate);
-                        return Kubernetes.CertificateValidationCallBack(sender, CaCert, cert, chain, sslPolicyErrors);
-                    };
-#else
-                    HttpClientHandler.ServerCertificateCustomValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
-                    {
-                        return Kubernetes.CertificateValidationCallBack(sender, CaCert, certificate, chain, sslPolicyErrors);
-                    };
-#endif
-                }
-            }
-
-            // set credentails for the kubernernet client
-            SetCredentials(config, HttpClientHandler);
+            InitKubernetes(config);
         }
 
         /// <summary>
@@ -161,7 +99,11 @@ namespace k8s
         public Kubernetes(IK8SConfiguration k8SConfiguration)
         {
             var config = KubernetesClientConfiguration.BuildConfigFromConfigObject(k8SConfiguration);
+            InitKubernetes(config);
+        }
 
+        private void InitKubernetes(KubernetesClientConfiguration config)
+        {
             if (string.IsNullOrWhiteSpace(config.Host))
             {
                 throw new KubeConfigException("Host url must be set");
@@ -228,9 +170,9 @@ namespace k8s
         }
 #endif
 
-        private X509Certificate2 CaCert { get; }
+        private X509Certificate2 CaCert;
 
-        private bool SkipTlsVerify { get; }
+        private bool SkipTlsVerify;
 
         partial void CustomInitialize()
         {
