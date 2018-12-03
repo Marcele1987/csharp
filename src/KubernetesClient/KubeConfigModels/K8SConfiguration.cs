@@ -13,11 +13,6 @@ namespace k8s.KubeConfigModels
     /// </remarks>
     public class K8SConfiguration : IK8SConfiguration
     {
-        public K8SConfiguration(IConfiguration config)
-        {
-            config.GetSection("K8SConfiguration").Bind(this);
-        }
-
         /// <summary>
         /// Gets or sets general information to be use for CLI interactions
         /// </summary>
