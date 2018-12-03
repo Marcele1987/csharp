@@ -1,7 +1,10 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using k8s.Exceptions;
 using k8s.KubeConfigModels;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace k8s.Tests
@@ -144,6 +147,34 @@ namespace k8s.Tests
             var k8sConfig = KubernetesClientConfiguration.LoadKubeConfig(new FileInfo("assets/kubeconfig.yml"), useRelativePaths: false);
             var cfg = KubernetesClientConfiguration.BuildConfigFromConfigObject(k8sConfig);
             Assert.NotNull(cfg.Host);
+        }
+
+        [Fact]
+        public void CreatedFromIConfiguration()
+        {
+            var config = new ConfigurationBuilder()
+                .AddJsonFile("assets/app.settings.json")
+                .Build();
+
+            var serviceProvider = new ServiceCollection()
+            .AddSingleton(typeof(IConfiguration),config)
+            .AddSingleton<IK8SConfiguration,K8SConfigurationOverload>()
+            .BuildServiceProvider();
+
+            var cfg = KubernetesClientConfiguration.BuildConfigFromConfigObject(serviceProvider.GetService<IK8SConfiguration>());
+            Assert.NotNull(cfg.Host);
+        }
+
+        private class K8SConfigurationOverload : K8SConfiguration
+        {
+            public K8SConfigurationOverload(IConfiguration config)
+            {
+                var section = config.GetSection("K8SConfigurationSettings");
+                CurrentContext = section["ContextName"];
+                Clusters = new List<Cluster>() { new Cluster() { Name = section["ClusterName"], ClusterEndpoint = new ClusterEndpoint() { Server = section["ClusterURL"], CertificateAuthorityData = section["ClusterCertData"] } } };
+                Contexts = new List<Context> { new Context() { Name = section["ContextName"], ContextDetails = new ContextDetails() { Cluster = section["ClusterName"], Namespace = section["ContextNamespace"], User = section["ContextUser"] } } };
+                Users = new List<User> { new User() { Name = section["ContextUser"], UserCredentials = new UserCredentials() { ClientCertificateData = section["ClientCertificateData"], ClientKeyData = section["ClientKeyData"] } } };
+            }
         }
 
         /// <summary>
